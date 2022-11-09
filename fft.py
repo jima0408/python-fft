@@ -46,12 +46,13 @@ plt.ylabel("amplitude [V]")
 plt.savefig("./" + args[3] + ".jpg")
 plt.show()
 
+#csvファイル用に時間と周波数の行データを生成
 time = []
 freq = []
 for i in range(smp_count):
     time.append(float(WAVE_SMP_TIME) * i)
     freq.append(float(x_unit_fft) * i)
-print(time)
+
 #csvファイルの作成
 df.insert(5, "", "")
 df.insert(6, "time /s" , time)
