@@ -1,7 +1,13 @@
 # csvファイルを読み取っていい感じにフーリエ変換してくれるプログラム
 
 ## 事前準備
-solにログインして以下のコードを実行してください。
+プログラムをsolに持っていきます。
+
+```
+$scp -r python-fft UECアカウント名@sol.edu.cc.uec.ac.jp:./
+```
+
+pythonを使うために、solにログインして以下のコードを実行してください。
 
 ```
 $module load python/3.10.2  
@@ -12,7 +18,7 @@ $python3 -m pip install matplotlib numpy pandas
 まず、ローカルのファイルをsolに持っていきます。
 
 `
-scp [file_name] UECアカウント名@sol.edu.cc.uec.ac.jp:[fft.py_path]
+$scp [file_name] UECアカウント名@sol.edu.cc.uec.ac.jp:[fft.py_path]
 `
 
 次に、フーリエ変換をしたいファイルを`fft.py`と同じディレクトリに置いて、以下のコマンドを実行してください。
