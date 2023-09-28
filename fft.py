@@ -27,7 +27,7 @@ for file in files:
 
         #csvから設定値を抽出
         wave_setting_data = pd.read_csv(path, header=None, usecols=[1])
-        WAVE_SMP_TIME = wave_setting_data.values[1]*100
+        WAVE_SMP_TIME = wave_setting_data.values[1]
         wave_record_count = wave_setting_data.values[0]
 
         # 波形データの読み出しとフーリエ変換後のX軸単位を計算
@@ -86,7 +86,8 @@ for file in files:
         # 結果をcsvに保存
         with open(args[3] + "/result.csv", "a", newline='') as csvFile:
             writer = csv.writer(csvFile)
-            writer.writerow([picked_wave_length, picked_amplitude])
+            #writer.writerow([picked_wave_length, picked_amplitude])
+            writer.writerow([wave_length, picked_amplitude])
 
 # 結果をグラフにプロット
 result_frequency = pd.read_csv(args[3] + "/result.csv", header=0, usecols=[0])
