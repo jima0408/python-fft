@@ -11,7 +11,7 @@ pythonを使うために、solにログインして以下のコードを実行�
 
 ```
 $module load python/3.10.2  
-$python3 -m pip install matplotlib numpy pandas
+$python3 -m pip install matplotlib numpy pandas scipy
 ```
 
 ## 使い方

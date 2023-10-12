@@ -1,4 +1,4 @@
-#⓪モジュールのインポート
+# モジュールのインポート
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -6,6 +6,11 @@ import sys
 import csv
 import os
 import re
+from scipy.optimize import curve_fit
+
+# ローレンツ関数の定義
+def lorentzian(x, A, x0, gamma):
+    return A / np.pi * (gamma / ((x - x0)**2 + gamma**2))
 
 # 引数からファイル名を取得
 args = sys.argv
@@ -80,8 +85,28 @@ result_amplitude = pd.read_csv(args[3] + "/result.csv", header=1, usecols=[1])
 xy_sorted = sorted(zip(result_frequency.values, result_amplitude.values))
 sorted_result_frequency, sorted_result_amplitude = zip(*xy_sorted)
 
+# 初期パラメータの推定
+initial_A = np.max(sorted_result_amplitude)  # 振幅
+initial_x0 = sorted_result_frequency[np.argmax(sorted_result_amplitude)][0]  # ピークの中心
+half_max = initial_A / 2.0  # 半値
+
+# 半値全幅（FWHM）を計算するための近似値を見つける
+indices = np.where(sorted_result_amplitude > half_max)[0]
+initial_gamma = sorted_result_frequency[indices[-1]][0] - sorted_result_frequency[indices[0]][0]  # 幅
+
+# 初期パラメータ
+initial_params = [initial_A, initial_x0, initial_gamma]
+print(initial_params)
+
+# ローレンツ関数でフィッティング
+params, covariance = curve_fit(lorentzian, np.array(sorted_result_frequency).flatten(), np.array(sorted_result_amplitude).flatten(), p0=initial_params, maxfev=5000)
+
+# フィット結果の表示
+print(f"A = {params[0]:.3f}, x0 = {params[1]:.3f}, gamma = {params[2]:.3f}")
+
 plt.figure(figsize=(10,8))    
 plt.plot(sorted_result_frequency, sorted_result_amplitude, 'o', lw=1)
+plt.plot(sorted_result_frequency, lorentzian(sorted_result_frequency, *params), label='Fitted', color='red')
 plt.xlabel("frequency [Hz]")
 plt.ylabel("amplitude [V]")
 plt.savefig(args[3] + "/result.jpg")
