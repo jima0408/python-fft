@@ -7,18 +7,34 @@ import csv
 import os
 import re
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks
 
 # ローレンツ関数の定義
 def lorentzian(x, A, x0, gamma):
     return A / np.pi * (gamma / ((x - x0)**2 + gamma**2))
+
+# 合成ローレンツ関数の定義
+def multi_lorentzian(x, *params):
+    y = np.zeros_like(x, dtype=np.float64)
+    for i in range(0, len(params), 3):
+        A = params[i]
+        x0 = params[i+1]
+        gamma = params[i+2]
+        y += lorentzian(x, A, x0, gamma)
+    return y
 
 # 引数からファイル名を取得
 args = sys.argv
 wave_path = args[1]
 files = os.listdir(wave_path)
 
+# 結果出力用のディレクトリを作成
+output_dir = "_" + args[1]
+if not os.path.exists(output_dir):
+    os.mkdir(output_dir)
+
 # 結果を保存するcsvファイルを作成
-with open(args[3] + "/result.csv", "w", newline='') as csvFile:
+with open(output_dir + "/result.csv", "w", newline='') as csvFile:
     writer = csv.writer(csvFile)
     writer.writerow(["frequency /Hz", "amplitude /V"])
 
@@ -71,15 +87,15 @@ for file in files:
         st_index = np.abs(np.asarray(fft_x) - FQ_SEARCH_ST).argmin()
         ed_index = np.abs(np.asarray(fft_x) - FQ_SEARCH_ED).argmin()
 
-        # グラフを描画して[波長].jpgで保存
-        plt.figure(figsize=(10,8))    
-        plt.plot(fft_x[st_index:ed_index],amplitude[st_index:ed_index], 'o', lw=1)
-        plt.xlim([0, float(args[2])])
-        plt.ylim([0,None])
-        plt.xlabel("frequency [Hz]")
-        plt.ylabel("amplitude [V]")
-        plt.savefig(args[3] + "/" + wave_length + "_fft.jpg")
-        plt.close()
+        ## グラフを描画して[波長].jpgで保存
+        #plt.figure(figsize=(10,8))    
+        #plt.plot(fft_x[st_index:ed_index],amplitude[st_index:ed_index], 'o', lw=1)
+        #plt.xlim([0, float(args[2])])
+        #plt.ylim([0,None])
+        #plt.xlabel("frequency [Hz]")
+        #plt.ylabel("amplitude [V]")
+        #plt.savefig(output_dir + "/" + wave_length + "_fft.jpg")
+        #plt.close()
 
         #wave_lengthに一番近い波長とその時の振幅を取得
         picked_wave_length = min(fft_x[st_index:ed_index], key=lambda x:abs(float(x)-float(wave_length)))[0]
@@ -89,42 +105,76 @@ for file in files:
         print("amplitute: " + str(picked_amplitude) + " [V]")
 
         # 結果をcsvに保存
-        with open(args[3] + "/result.csv", "a", newline='') as csvFile:
+        with open(output_dir + "/result.csv", "a", newline='') as csvFile:
             writer = csv.writer(csvFile)
             #writer.writerow([picked_wave_length, picked_amplitude])
             writer.writerow([wave_length, picked_amplitude])
 
 # 結果をグラフにプロット
-result_frequency = pd.read_csv(args[3] + "/result.csv", header=0, usecols=[0])
-result_amplitude = pd.read_csv(args[3] + "/result.csv", header=0, usecols=[1])
+result_frequency = pd.read_csv(output_dir + "/result.csv", header=0, usecols=[0])
+result_amplitude = pd.read_csv(output_dir + "/result.csv", header=0, usecols=[1])
 xy_sorted = sorted(zip(result_frequency.values, result_amplitude.values))
 sorted_result_frequency, sorted_result_amplitude = zip(*xy_sorted)
+sorted_result_frequency = np.ravel(sorted_result_frequency)
+sorted_result_amplitude = np.ravel(sorted_result_amplitude)
 
-# 初期パラメータの推定
-initial_A = np.max(sorted_result_amplitude)  # 振幅
-initial_x0 = sorted_result_frequency[np.argmax(sorted_result_amplitude)][0]  # ピークの中心
-half_max = initial_A / 2.0  # 半値
+# 移動平均の追加（ウィンドウサイズは3）
+df = pd.DataFrame({'amplitude': sorted_result_amplitude})
+df['moving_average'] = df['amplitude'].rolling(window=5).mean()
 
-# 半値全幅（FWHM）を計算するための近似値を見つける
-indices = np.where(sorted_result_amplitude > half_max)[0]
-initial_gamma = sorted_result_frequency[indices[-1]][0] - sorted_result_frequency[indices[0]][0]  # 幅
-
-# 初期パラメータ
-initial_params = [initial_A, initial_x0, initial_gamma]
-print(initial_params)
-
-# ローレンツ関数でフィッティング
-params, covariance = curve_fit(lorentzian, np.array(sorted_result_frequency).flatten(), np.array(sorted_result_amplitude).flatten(), p0=initial_params, maxfev=5000)
-
-# フィット結果の表示
-print(f"A = {params[0]:.3f}, x0 = {params[1]:.3f}, gamma = {params[2]:.3f}")
+# NaNを除去（移動平均の初めの数点はNaNになるため）
+df = df.dropna()
 
 plt.figure(figsize=(10,8))    
-plt.plot(sorted_result_frequency, sorted_result_amplitude, 'o', lw=1)
-plt.plot(sorted_result_frequency, lorentzian(sorted_result_frequency, *params), label='Fitted', color='red')
+plt.plot(sorted_result_frequency[len(sorted_result_frequency) - len(df):], df["moving_average"], 'o', lw=1)
 plt.xlim([0, None])
 plt.ylim([0, None])
 plt.xlabel("frequency [Hz]")
 plt.ylabel("amplitude [V]")
-plt.savefig(args[3] + "/result.jpg")
+plt.savefig(output_dir + "/av.jpg")
+plt.close()
+
+# ピーク検出（移動平均を使用）
+peaks, properties = find_peaks(df['moving_average'].values, height=0.05, distance=30)
+print(peaks)
+print(properties)
+plt.figure(figsize=(10,8))    
+plt.plot(peaks, properties["peak_heights"], 'o', lw=1)
+plt.xlim([0, None])
+plt.ylim([0, None])
+plt.xlabel("frequency [Hz]")
+plt.ylabel("amplitude [V]")
+plt.savefig(output_dir + "/peaks.jpg")
+plt.close()
+# ピークの高さ順にソート
+sorted_indices = np.argsort(properties['peak_heights'])[::-1]  # 降順にソート
+sorted_peaks = peaks[sorted_indices]
+
+n = args[3] if len(args) > 3 else 4
+top_n_peaks = sorted_peaks[:int(n)]
+initial_params = []
+for peak in top_n_peaks:
+    A = sorted_result_amplitude[peak]
+    x0 = sorted_result_frequency[peak]
+    half_max = A / 2.0  # 半値
+    # 半値全幅（FWHM）を計算するための近似値を見つける
+    indices = np.where(sorted_result_amplitude > half_max)[0]
+    gamma = sorted_result_frequency[indices[-1]] - sorted_result_frequency[indices[0]]  # 幅
+    initial_params.extend([A, x0, gamma])
+    print("A=" + str(A) + ", x0=" + str(x0) + ", gamma=" + str(gamma))
+
+print(initial_params)
+# ローレンツ関数でフィッティング
+params, covariance = curve_fit(multi_lorentzian, sorted_result_frequency, sorted_result_amplitude, p0=initial_params, maxfev=20000)
+print(params)
+print(covariance)
+
+plt.figure(figsize=(10,8))    
+plt.plot(sorted_result_frequency, sorted_result_amplitude, 'o', lw=1)
+plt.plot(sorted_result_frequency, multi_lorentzian(sorted_result_frequency, *params), label='Fitted', color='red')
+plt.xlim([0, None])
+plt.ylim([0, None])
+plt.xlabel("frequency [Hz]")
+plt.ylabel("amplitude [V]")
+plt.savefig(output_dir + "/result.jpg")
 plt.close()
